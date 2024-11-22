@@ -24,5 +24,6 @@ class Palette{
   static const Color tempColor6 = Color(0xFF54987B);
   static const Color tempColor7 = Color(0xFF3E889B);
   static const Color tempColor8 = Color(0xFF48699A);
-
+  static const Color buttonColor = Color(0xFF333333);
+  static const Color logIntro = Color(0xFFA8A4A4);
 }
