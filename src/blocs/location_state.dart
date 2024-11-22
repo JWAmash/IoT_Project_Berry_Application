@@ -11,7 +11,6 @@ String kakaoApiKey = dotenv.env['kakaoapikey'].toString();
 //State 정의
 abstract class LocationState extends Equatable{
   @override
-  // TODO: implement props
   List<Object?> get props => [];
 }
 
@@ -25,7 +24,8 @@ class LocationLoaded extends LocationState{
   final String? error;
   final String? address;
   final String? city;
-  LocationLoaded({this.latitude,this.longitude,this.error,this.latx,this.laty,this.address,this.city});
+  final String? region_3depth_name;
+  LocationLoaded({this.latitude,this.longitude,this.error,this.latx,this.laty,this.address,this.city,this.region_3depth_name});
 
   @override
   // TODO: implement props
@@ -69,6 +69,7 @@ class LocationBloc extends Bloc<LocationEvent,LocationState>{
   int? laty;
   String? city;
   String? address;
+  String? region_3depth_name;
   Map<String, dynamic>? addressJson;
   LocationBloc(): super(LocationInitial()){
     on<GetMyCurrentLocation>(_onGetLocation);
@@ -78,7 +79,7 @@ class LocationBloc extends Bloc<LocationEvent,LocationState>{
     try{
       LocationPermission permission = await Geolocator.requestPermission();
       Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-
+      addressJson= await getAddressFromCoordinates( position.longitude,position.latitude);
       if(_previousePosition == null|| _previousePosition!.latitude != position.latitude||_previousePosition!.longitude!=position.longitude){
         _previousePosition = position;
 
@@ -86,19 +87,24 @@ class LocationBloc extends Bloc<LocationEvent,LocationState>{
         latx=grid['x'];
         laty=grid['y'];
         print('여긴옴');
-        addressJson= await getAddressFromCoordinates( position.longitude,position.latitude);
+        region_3depth_name = addressJson?['documents'][0]['address']['region_3depth_name']??'error';
         city = addressJson?['documents'][0]['address']['region_1depth_name']??'error';
         address = addressJson?['documents'][0]['address']['address_name']??'error';
+        //tm좌표 얻는 법
+        //https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getTMStdrCrdnt?serviceKey=Ib%2F%2FTRFe%2BUdX%2FCDTTIHPWaqjq3yC%2B49Up6tRe%2BX4e%2BVbjY%2FY2h9ARkPVlGPM5vGB5M5%2F95IoN7gDi4Y6QJfbpw%3D%3D&returnType=xml&numOfRows=100&pageNo=1&umdName=%EC%84%A0%EB%8B%A8%EB%8F%99
+        //실외 미세먼지
+        //https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty?serviceKey=Ib%2F%2FTRFe%2BUdX%2FCDTTIHPWaqjq3yC%2B49Up6tRe%2BX4e%2BVbjY%2FY2h9ARkPVlGPM5vGB5M5%2F95IoN7gDi4Y6QJfbpw%3D%3D&returnType=json&numOfRows=100&pageNo=1&stationName=%EC%A2%85%EB%A1%9C%EA%B5%AC&dataTerm=DAILY&ver=1.0
         print(city);
         print(address);
-        print('x좌표: ${position.latitude} y좌표: ${position.longitude} x격자: ${latx} y격자:${laty} test:${address}');
-        emit(LocationLoaded(latitude: position.latitude,longitude: position.longitude,latx: latx,laty: laty,address: address,city: city));
+        print(region_3depth_name);
+        print('x좌표: ${position.latitude} y좌표: ${position.longitude} x격자: ${latx} y격자:${laty} test:${address} 사용할 좌표:${region_3depth_name}');
+        emit(LocationLoaded(latitude: position.latitude,longitude: position.longitude,latx: latx,laty: laty,address: address,city: city,region_3depth_name: region_3depth_name));
       }
       else{
         _previousePosition = position;
         var grid = ConvGridGps.gpsToGRID(position.latitude, position.longitude);
         print('같음');
-        emit(LocationLoaded(latitude: position.latitude,longitude: position.longitude,latx: latx,laty: laty));
+        emit(LocationLoaded(latitude: position.latitude,longitude: position.longitude,latx: latx,laty: laty,address: address,city: city));
         //emit(LocationUnchanged(latitude: position.latitude,longitude: position.longitude));
       }
     }catch(e){

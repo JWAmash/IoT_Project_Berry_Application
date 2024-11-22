@@ -196,7 +196,9 @@ class TimerBloc2 extends Bloc<TimerEvent, TimerState2> {
 
   void _onStartTimer(StartTimer event, Emitter<TimerState2> emit) {
     _endTime = DateTime.now().add(Duration(minutes: 5));
+
     temporaryPassword = Random().nextInt(999999).toString().padLeft(6, '0');
+
     _saveEndTime(_endTime!,temporaryPassword);
     //_startPeriodicTimer(emit);
     print('시작한번');
@@ -257,6 +259,7 @@ class TimerBloc2 extends Bloc<TimerEvent, TimerState2> {
         'endTime': endTime.toUtc().millisecondsSinceEpoch ~/ 1000, // 초 단위로 저장
         'password': temporaryPassword
       });
+
     } else {
       FirebaseFirestore.instance.collection('timers').doc(timerId).delete();
     }

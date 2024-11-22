@@ -5,10 +5,7 @@ import 'dart:convert';
 
 //State
 abstract class MqttState {}
-
 class MqttInitial extends MqttState {}
-
-//class MqttConnected extends MqttState {}
 class MqttConnected extends MqttState {
   final Map<String, Map<String, dynamic>> messages;
   final bool isConnected;
@@ -25,39 +22,31 @@ class MqttConnected extends MqttState {
     );
   }
 }
-
 class MqttDisconnected extends MqttState {}
-
 class MqttSubtopic extends MqttState {}
 
 
 //Event
 abstract class MqttEvent {}
-
 class ConnectMqtt extends MqttEvent {
   final String server;
   final int port;
   final String clientId;
   ConnectMqtt({required this.server, required this.port, required this.clientId});
 }
-
 class SubscribeTopic extends MqttEvent {
   final String topic;
-
   SubscribeTopic({required this.topic});
 }
 
 class PublishMessage extends MqttEvent {
   final String topic;
   final String message;
-
   PublishMessage({required this.topic, required this.message});
 }
-
 class MqttMessageReceived extends MqttEvent {
   final String topic;
   final String message;
-
   MqttMessageReceived({required this.topic, required this.message});
 }
 
