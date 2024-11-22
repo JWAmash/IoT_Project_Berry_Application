@@ -11,7 +11,7 @@ class ScreenLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     // 위치 가져오기 이벤트를 초기화 시점에 등록
     context.read<LocationBloc>().add(GetMyCurrentLocation());
-    context.read<MqttBloc>().add(ConnectMqtt(server: 'test.mosquitto.org', port: 1883, clientId: 'flutter_client'));
+    context.read<MqttBloc>().add(ConnectMqtt(server: 'broker.hivemq.com', port: 1883, clientId: 'flutter_client'));
     return Scaffold(
       body: MultiBlocListener(
         listeners: [

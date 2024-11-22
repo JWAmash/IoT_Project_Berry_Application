@@ -179,7 +179,7 @@ class _ScreenAddFaceState extends State<ScreenAddFace> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('얼굴 등록'),
+        title: Text('얼굴 등록',style: TextStyle(fontWeight: FontWeight.bold),),
       ),
       body: Column(
         children: [

@@ -1,7 +1,12 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iot_project_berry/src/blocs/mqtt_bloc.dart';
+import 'package:iot_project_berry/src/config/palette.dart';
+import 'package:iot_project_berry/src/screens/screen_blind_log.dart';
 import 'package:iot_project_berry/src/screens/screen_blind_option.dart';
 import 'package:iot_project_berry/src/screens/screen_blind_schedule.dart';
 
@@ -14,15 +19,53 @@ class ScreenBlind extends StatefulWidget {
 
 class _ScreenBlindState extends State<ScreenBlind> {
   final String blindTopic= 'blinds/control';
+  final now = DateTime.now().hour;
+
+  String blindstate="";
   bool blindAuto = false;
+
+
+  StreamSubscription<DocumentSnapshot>? _listenerSubscription;
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
+    listenToDocument();
   }
 
-  final now = DateTime.now().hour;
+  void listenToDocument() {
+    print("반복케이스 1");
+    DocumentReference docRef = FirebaseFirestore.instance
+        .collection('config')
+        .doc('blindlocation'); // 특정 문서 ID
+
+    _listenerSubscription = docRef.snapshots().listen((DocumentSnapshot snapshot) {
+      print("반복케이스 2");
+      if (snapshot.exists) {
+        Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
+        print("Document data: $data");
+        print("반복케이스 3");
+        setState(() {
+          // 필드 값 업데이트
+          blindstate = data['state'];
+          blindAuto = data['auto'];
+        });
+      } else {
+        print("Document does not exist.");
+      }
+    }, onError: (error) {
+      print("Error listening to document: $error");
+    });
+  }
+
+
+  @override
+  void dispose() {
+    _listenerSubscription?.cancel();
+    super.dispose();
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -30,15 +73,16 @@ class _ScreenBlindState extends State<ScreenBlind> {
       appBar: AppBar(
         title: Text(
           '블라인드',
-          style: TextStyle(
-            fontSize: 22,
-          ),
+            style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
           ElevatedButton(
             onPressed: () {
-              setState(() {
-                blindAuto = !blindAuto;
+              FirebaseFirestore.instance
+                  .collection('config')
+                  .doc('blindlocation')
+                  .update({
+                'auto': !blindAuto
               });
             },
             child: blindAuto ? Text('Auto ON') : Text('Auto OFF'),
@@ -132,29 +176,62 @@ class _ScreenBlindState extends State<ScreenBlind> {
                         ),
                       ),
                     ],
+                    //임시
+                    if(blindstate=="bottom")
                     Center(
                         child: Container(
                       padding: EdgeInsets.all(20),
                       //     height: 200,
                       // width: 200,
                       child: Image.asset(
-                        'assets/blind_up.png',
+                        'assets/blind_down.png',
                         // width: 200,
                         // height: 200,
                         fit: BoxFit.contain,
                       ),
                     )),
+                    if(blindstate=="middle")
+                    Center(
+                        child: Container(
+                          padding: EdgeInsets.all(20),
+                          //     height: 200,
+                          // width: 200,
+                          child: Image.asset(
+                            'assets/blind_middle.png',
+                            // width: 200,
+                            // height: 200,
+                            fit: BoxFit.contain,
+                          ),
+                        )),
+                    if(blindstate=="top")
+                      Center(
+                          child: Container(
+                            padding: EdgeInsets.all(20),
+                            //     height: 200,
+                            // width: 200,
+                            child: Image.asset(
+                              'assets/blind_up.png',
+                              // width: 200,
+                              // height: 200,
+                              fit: BoxFit.contain,
+                            ),
+                          )),
+                    if(blindstate=="")
+                      Center(
+                          child: CircularProgressIndicator()
+                      )
+                    ,
                   ]),
                 ),
                 Expanded(
                   child: Container(
                     //margin: EdgeInsets.only(top: 30),
-                    padding: EdgeInsets.all(10),
+                    padding: EdgeInsets.all(40),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             GestureDetector(
                               onTapDown:(_){
@@ -164,15 +241,19 @@ class _ScreenBlindState extends State<ScreenBlind> {
                               onTapCancel: (){
                                 context.read<MqttBloc>().add(
                                     PublishMessage(topic: blindTopic, message: 'UP_RELEASE'));
+
                               },
                               child: ElevatedButton(
                                 onPressed: () {
                                 },
                                 child: Text('올림',style: TextStyle(
-                                  fontSize: 20
+                                  fontSize: 20,fontWeight: FontWeight.bold,color: Palette.buttonColor
                                 ),),
                                 style: ElevatedButton.styleFrom(
-                                  minimumSize: Size(150, 60),
+                                  minimumSize: Size(150, 80),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                        BorderRadius.circular(10))
                                 ),
                               ),
                             ),
@@ -184,48 +265,62 @@ class _ScreenBlindState extends State<ScreenBlind> {
                               onTapCancel: (){
                                 context.read<MqttBloc>().add(
                                     PublishMessage(topic: blindTopic, message: 'DOWN_RELEASE'));
+
                               },
 
                               child: ElevatedButton(
                                   onPressed: () {
                                   },
                                   child: Text('내림',style: TextStyle(
-                                      fontSize: 20
+                                      fontSize: 20,fontWeight: FontWeight.bold,color: Palette.buttonColor
                                   )),
                                   style: ElevatedButton.styleFrom(
-                                    minimumSize: Size(150, 60),
+                                    minimumSize: Size(150, 80),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                          BorderRadius.circular(10))
                                   )),
                             )
                           ],
                         ),
                         //SizedBox(height: 30,),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             ElevatedButton(
                               onPressed: () {context.read<MqttBloc>().add(
-                                  PublishMessage(topic: blindTopic, message: 'FULL_UP'));},
+                                  PublishMessage(topic: blindTopic, message: 'FULL_UP'));
+
+                                },
                               child: Text('최대 올림',style: TextStyle(
-                                  fontSize: 20
+                                  fontSize: 20,fontWeight: FontWeight.bold,color: Palette.buttonColor
                               )),
                               style: ElevatedButton.styleFrom(
-                                minimumSize: Size(150, 60),
+                                minimumSize: Size(150, 80),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                      BorderRadius.circular(10))
                               ),
                             ),
                             ElevatedButton(
                                 onPressed: () {context.read<MqttBloc>().add(
-                                    PublishMessage(topic: blindTopic, message: 'FULL_DOWN'));},
+                                    PublishMessage(topic: blindTopic, message: 'FULL_DOWN'));
+
+                                  },
                                 child: Text('최대 내림',style: TextStyle(
-                                    fontSize: 20
+                                    fontSize: 20,fontWeight: FontWeight.bold,color: Palette.buttonColor
                                 )),
                                 style: ElevatedButton.styleFrom(
-                                  minimumSize: Size(150, 60),
+                                  minimumSize: Size(150, 80),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                        BorderRadius.circular(10))
                                 ))
                           ],
                         ),
                         //SizedBox(height: 30,),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             ElevatedButton(
                               onPressed: () {
@@ -235,10 +330,13 @@ class _ScreenBlindState extends State<ScreenBlind> {
                                         builder: (_) => ScreenBlindSchedule()));
                               },
                               child: Text('예약',style: TextStyle(
-                                  fontSize: 20
+                                  fontSize: 20,fontWeight: FontWeight.bold,color: Palette.buttonColor
                               )),
                               style: ElevatedButton.styleFrom(
-                                minimumSize: Size(150, 60),
+                                minimumSize: Size(150, 70),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                      BorderRadius.circular(10))
                               ),
                             ),
                             ElevatedButton(
@@ -249,13 +347,33 @@ class _ScreenBlindState extends State<ScreenBlind> {
                                           builder: (_) => ScreenBlindOption()));
                                 },
                                 child: Text('상세옵션',style: TextStyle(
-                                    fontSize: 20
+                                    fontSize: 20,fontWeight: FontWeight.bold,color: Palette.buttonColor
                                 )),
                                 style: ElevatedButton.styleFrom(
-                                  minimumSize: Size(150, 60),
+                                  minimumSize: Size(150, 70),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                        BorderRadius.circular(10))
                                 ))
                           ],
                         ),
+                        ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => ScreenBlindLog()));
+                            },
+                            child: Text('블라인드 작동기록',style: TextStyle(
+                                fontSize: 20,fontWeight: FontWeight.bold,color: Palette.buttonColor
+                            )),
+                            style: ElevatedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                    BorderRadius.circular(10)),
+                              minimumSize: Size.fromHeight(70),
+                              maximumSize: Size.infinite
+                            ))
                       ],
                     ),
                   ),

@@ -3,21 +3,17 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
+import 'package:iot_project_berry/src/blocs/airpollution_bloc.dart';
+import 'package:iot_project_berry/src/blocs/berrychart_bloc.dart';
+import 'package:iot_project_berry/src/blocs/location_state.dart';
 import 'package:iot_project_berry/src/blocs/mqtt_bloc.dart';
-
-//import 'package:google_fonts/google_fonts.dart';
+import 'package:iot_project_berry/src/config/palette.dart';
 import 'package:iot_project_berry/src/widgets/dust_barchart.dard.dart';
 import 'package:iot_project_berry/src/widgets/dust_statuscircle.dart';
 
 class ScreenBerry extends StatefulWidget {
-  // final dynamic parseWeatherUSNData;
-  // final dynamic parseWeatherUSFData;
-  // final dynamic parseWeatherVFData;
-
-  ScreenBerry(// {this.parseWeatherUSNData,
-      // this.parseWeatherUSFData,
-      // this.parseWeatherVFData}
-      );
+  const ScreenBerry({super.key});
 
   @override
   State<ScreenBerry> createState() => _ScreenBerryState();
@@ -25,8 +21,10 @@ class ScreenBerry extends StatefulWidget {
 
 class _ScreenBerryState extends State<ScreenBerry> {
   String documentData = "Loading...";
-
+  bool isDataFetched = false;
+  late DateTime selectedDate;
   int dustWidgetindex = 0;
+
   List<Map<String, dynamic>> pmData = [
     // {'time': '12:00', 'dustValue': 35},
     // {'time': '13:00', 'dustValue': 55},
@@ -47,122 +45,48 @@ class _ScreenBerryState extends State<ScreenBerry> {
   List<Map<String, dynamic>> fpmData = [];
   List<Map<String, dynamic>> tempData = [];
   List<Map<String, dynamic>> humData = [];
+  double minpm = 0;
+  double minfpm = 0;
+  double minhum = 0;
+  double mintemp = 50;
+  double maxpm = 200;
+  double maxfpm = 100;
+  double maxhum = 0;
+  double maxtemp = 0;
+
+  int? inPmTemp;
+  int? outPmTemp;
+  int? inFpmTemp;
+  int? outFpmTemp;
+
+  bool inPmDangerDifference = false;
+  bool inFpmDangerDifference = false;
+  bool inPmDangerValue = false;
+  bool inFpmDangerValue = false;
+  bool airDanger = false;
 
   @override
   void initState() {
     super.initState();
-    DateTime targetDate = DateTime(2024, 10, 27);
-    fetchData(targetDate);
+    selectedDate = DateTime.now(); // 원하는 날짜로 설정
+    //selectedDate = DateTime.now();
+    final locationState = context.read<LocationBloc>().state;
+    context.read<BerryChartDataBloc>().add(BerryChartDataByDate(selectedDate));
+    if (locationState is LocationLoaded) {
+      // LocationLoaded 상태일 때의 처리
+      String region = locationState.region_3depth_name!;
+
+      // 이제 이 값들을 사용하여 AirPollutionBloc에 이벤트를 추가할 수 있습니다
+      context.read<AirPollutionBloc>().add(
+            AirPollutionTmAddressForSearch(address: region),
+          );
+
+      // 나머지 위젯 빌드 로직...
+    }
+    // DateTime targetDate = DateTime.now();
+    // fetchData(targetDate);
     // print(widget.parseWeatherVFData);
     // print(widget.parseWeatherUSFData);
-  }
-
-  Future<void> fetchData(DateTime date) async {
-    try {
-      // 날짜 기반 문서를 가져오기 위해 오늘 날짜를 포맷
-      String datePrefix =
-          "sensor_data_${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}_";
-
-      // Firestore 컬렉션에서 하루 동안의 모든 문서 가져오기
-      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-          .collection('data')
-          .where(FieldPath.documentId, isGreaterThanOrEqualTo: datePrefix)
-          .where(FieldPath.documentId, isLessThan: "${datePrefix}24")
-          .get();
-
-      List<String> pm10MaxList = [];
-      List<String> pm10AvgList = [];
-      List<String> pm25MaxList = [];
-      List<String> pm25AvgList = [];
-      List<String> humMaxList = [];
-      List<String> humAvgList = [];
-      List<String> tempMaxList = [];
-      List<String> tempAvgList = [];
-      List<String> timestampList = [];
-
-      for (var docSnapshot in querySnapshot.docs) {
-        final data = docSnapshot.data() as Map<String, dynamic>;
-
-        // pm10MaxList.add(data.containsKey('PM 10.0 최대값') ? data['PM 10.0 최대값'].toString() : "데이터 없음");
-        // pm10AvgList.add(data.containsKey('PM 10.0 평균') ? data['PM 10.0 평균'].toString() : "데이터 없음");
-        // pm25MaxList.add(data.containsKey('PM 2.5 최대값') ? data['PM 2.5 최대값'].toString() : "데이터 없음");
-        // pm25AvgList.add(data.containsKey('PM 2.5 평균') ? data['PM 2.5 평균'].toString() : "데이터 없음");
-        // humMaxList.add(data.containsKey('습도 최대값') ? data['습도 최대값'].toString() : "데이터 없음");
-        // humAvgList.add(data.containsKey('습도 평균') ? data['습도 평균'].toString() : "데이터 없음");
-        // tempMaxList.add(data.containsKey('온도 최대값') ? data['온도 최대값'].toString() : "데이터 없음");
-        // tempAvgList.add(data.containsKey('온도 평균') ? data['온도 평균'].toString() : "데이터 없음");
-        //
-        // if (data.containsKey('timestamp')) {
-        //   Timestamp timestamp = data['timestamp'];
-        //   DateTime dateTime = timestamp.toDate();
-        //   String formattedDate = "${dateTime.year}년 ${dateTime.month}월 ${dateTime.day}일 ${dateTime.hour}시 ${dateTime.minute}분 ${dateTime.second}초";
-        //   timestampList.add(formattedDate);
-        // } else {
-        //   timestampList.add("데이터 없음");
-        // }
-
-        // 타임스탬프가 있는지 확인
-        if (data.containsKey('timestamp')) {
-          Timestamp timestamp = data['timestamp'];
-          DateTime dateTime = timestamp.toDate();
-          String formattedTime = "${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
-          // PM 2.5 평균 값이 있는지 확인
-          if (data.containsKey('PM 2.5 평균')) {
-            double fpm25Avg = data['PM 2.5 평균'];
-            // 시간과 PM 2.5 평균 값을 testdata 리스트에 추가
-            fpmData.add({
-              'time': formattedTime,
-              'Value': fpm25Avg,
-            });
-          }
-          if (data.containsKey('PM 10.0 평균')) {
-            double pmAvg = data['PM 10.0 평균'];
-            // 시간과 PM 2.5 평균 값을 testdata 리스트에 추가
-            pmData.add({
-              'time': formattedTime,
-              'Value': pmAvg,
-            });
-          }
-          if (data.containsKey('온도 평균')) {
-            double tempAvg = data['온도 평균'];
-            // 시간과 PM 2.5 평균 값을 testdata 리스트에 추가
-            tempData.add({
-              'time': formattedTime,
-              'Value': tempAvg,
-            });
-          }
-          if (data.containsKey('습도 평균')) {
-            double humAvg = data['습도 평균'];
-            // 시간과 PM 2.5 평균 값을 testdata 리스트에 추가
-            humData.add({
-              'time': formattedTime,
-              'Value': humAvg,
-            });
-          }
-        }
-      }
-
-      setState(() {
-        documentData = "PM 10.0 최대값 리스트: $pm10MaxList\n"
-            "PM 10.0 평균 리스트: $pm10AvgList\n"
-            "PM 2.5 최대값 리스트: $pm25MaxList\n"
-            "PM 2.5 평균 리스트: $pm25AvgList\n"
-            "습도 최대값 리스트: $humMaxList\n"
-            "습도 평균 리스트: $humAvgList\n"
-            "온도 최대값 리스트: $tempMaxList\n"
-            "온도 평균 리스트: $tempAvgList\n"
-            "timestamp 리스트: $timestampList";
-      });
-      print('미세$pmData');
-      print('초미세$fpmData');
-      print('온도$tempData');
-      print('습도$humData');
-      
-    } catch (e) {
-      setState(() {
-        documentData = "Error fetching data: $e";
-      });
-    }
   }
 
   @override
@@ -170,9 +94,10 @@ class _ScreenBerryState extends State<ScreenBerry> {
     final String temptopic = "berry/home/temperature";
     final String pm = "pm10";
     final String fpm = "pm2.5";
+    DateTime targetDate = DateTime.now();
     return Scaffold(
         appBar: AppBar(
-          title: Text('스마트 스피커 베리'),
+          title: Text('스마트 스피커 베리',style: TextStyle(fontWeight: FontWeight.bold),),
         ),
         body: Container(
           child: Stack(children: [
@@ -182,11 +107,199 @@ class _ScreenBerryState extends State<ScreenBerry> {
             SingleChildScrollView(
               padding: EdgeInsets.all(10.0),
               child: Column(children: [
+                BlocBuilder<MqttBloc, MqttState>(
+                  builder: (context, mqttState) {
+                    return BlocBuilder<AirPollutionBloc, AirPollutionState>(
+                      builder: (context, airState) {
+                        String infoMessage = '';
+                        //실외 공기 상태
+                        bool pmGood = true;
+                        bool fpmGood = true;
+                        int pmDist = 0;
+                        int fpmDist = 0;
+                        if (mqttState is MqttConnected &&
+                            airState is AirPollutionLoadedAirData) {
+                          print('분기1');
+
+                          //실내 미세먼지 오염수치가 높을때
+                          if ((mqttState.messages[temptopic] != null &&
+                                  mqttState.messages[temptopic]![pm] != null) &&
+                              (mqttState.messages[temptopic] != null)) {
+                            //실내 미세먼지 수치를 받아온 상황
+                            print('분기2');
+                            //실내 먼지 수치에 따른 위험
+                            if (mqttState.messages[temptopic]![pm] > 80) {
+                              print('실내 먼지가 안좋은 상황');
+                              //실내 먼지 안좋음
+                              inPmDangerValue = true;
+                            } else {
+                              print('실내먼지 좋음');
+                              //실내 먼지 좋음
+                              inPmDangerValue = false;
+                            }
+                            print('분기3');
+
+                            //실내 실외를 비교하는 상황
+                            if (airState.pm != -1) {
+                              //실외 미세먼지도 가지고 있을 때 가능
+                              if (airState.pm! > 60) {
+                                //실외 미세먼지 좋음
+                                pmGood = false;
+                              }
+                              print('실내와 실외를 비교시작');
+                              if ((mqttState.messages[temptopic]![pm] -
+                                      airState.pm!) >
+                                  10) {
+                                //두 수치의 값을 비교해서 10보다 크면
+                                print('실내실외 차이가 10보다 큼');
+
+                                pmDist = mqttState.messages[temptopic]![pm] -
+                                    airState.pm!;
+                                inPmDangerDifference = true;
+                              } else {
+                                print('실내 실외 차이가 10보다 작음');
+                                inPmDangerDifference = false;
+                              }
+                            }
+                          } else {
+                            //값을 알 수 없을 때
+                            inPmDangerDifference = false;
+                            inPmDangerValue = false;
+                          }
+
+                          print('분기10');
+                          //실내 초미세먼지 오염수치가 높을때
+                          if ((mqttState.messages[temptopic] != null &&
+                                  mqttState.messages[temptopic]![fpm] !=
+                                      null) &&
+                              (mqttState.messages[temptopic] != null)) {
+                            //실내 초미세먼지 수치를 받아온 상황
+                            print('분기11');
+                            //실내 먼지 수치에 따른 위험
+                            if (mqttState.messages[temptopic]![fpm] > 50) {
+                              print('실내 초먼지가 안좋은 상황');
+                              //실내 먼지 안좋음
+                              inFpmDangerValue = true;
+                            } else {
+                              //실내 먼지 좋음
+                              inFpmDangerValue = false;
+                            }
+
+                            //실내 실외를 비교하는 상황
+                            if (airState.fpm != -1) {
+                              //실외 미세먼지도 가지고 있을 때 가능
+                              if (airState.fpm! > 30) {
+                                //실외 미세먼지 안좋음
+                                print('여기인가');
+                                fpmGood = false;
+                              }
+                              print('실내와 실외를 비교시작');
+                              if ((mqttState.messages[temptopic]![fpm] -
+                                      airState.fpm!) >
+                                  10) {
+                                //두 수치의 값을 비교해서 10보다 크면
+                                print('실내실외 차이가 10보다 큼');
+                                fpmDist = mqttState.messages[temptopic]![fpm] -
+                                    airState.fpm!;
+                                inFpmDangerDifference = true;
+                              } else {
+                                print('실내 실외 차이가 10보다 작음');
+                                inFpmDangerDifference = false;
+                              }
+                            }
+                          } else {
+                            //값을 알 수 없을 때
+                            inFpmDangerDifference = false;
+                            inFpmDangerValue = false;
+                          }
+
+                          if (inPmDangerValue || inFpmDangerValue) {
+                            airDanger = true;
+                          } else {
+                            airDanger = false;
+                          }
+
+                          print("내외 미먼 차이$inPmDangerDifference");
+                          print("내외 초미먼 차이$inFpmDangerDifference");
+                          print("내부 미먼 경고$inPmDangerValue");
+                          print("내부 초미먼 경고$inFpmDangerValue");
+                          print("실외 미세먼지 좋음$pmGood");
+                          print("실외 초미세먼지 좋음$fpmGood");
+
+                          //경고 문구 가공
+                          if (inPmDangerValue && inFpmDangerValue) {
+                            //두 수치 모두 나쁨일 때
+                            infoMessage =
+                                "실내 미세먼지,초미세먼지 수치가 높습니다.\n공기 청정을 추천합니다.";
+                            if (pmGood && fpmGood) {
+                              infoMessage =
+                                  "실내 미세먼지,초미세먼지 수치가 높습니다.\n공기 청정을 추천드립니다.\n창문을 통한 환기를 추천드립니다.";
+                            }
+                          } else if (inPmDangerValue) {
+                            infoMessage = "실내 미세먼지 수치가 높습니다.\n공기 청정을 추천합니다.";
+                            if (pmGood && fpmGood) {
+                              infoMessage =
+                                  "실내 미세먼지 수치가 높습니다.\n공기 청정을 추천합니다.\n창문을 통한 환기를 추천드립니다.";
+                            }
+                          } else if (inFpmDangerValue) {
+                            infoMessage = "실내 초미세먼지 수치가 높습니다.\n공기 청정을 추천합니다.";
+                            if (pmGood && pmGood) {
+                              infoMessage =
+                                  "실내 초미세먼지 수치가 높습니다.\n공기 청정을 추천합니다.\n창문을 통한 환기를 추천드립니다.";
+                            }
+                          }
+
+                          if (airDanger) {
+                            return Column(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.only(top: 5, bottom: 5),
+                                  width: double.infinity,
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    textAlign: TextAlign.center,
+                                    '안내',
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                  color: Colors.blueAccent,
+                                ),
+                                Container(
+                                  margin: EdgeInsets.only(bottom: 20),
+                                  padding: EdgeInsets.all(10),
+                                  width: double.infinity,
+                                  alignment: Alignment.center,
+                                  color: Colors.white70,
+                                  child: Text(
+                                    textAlign: TextAlign.center,
+                                    infoMessage,
+                                    style: TextStyle(fontSize: 15),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+                          return Container(
+                            height: 1,
+                          );
+                        } else {
+                          return Container(
+                            height: 1,
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
                 Column(
                   children: [
                     Text(
                       '실내 미세먼지 현황',
-                      style: TextStyle(fontSize: 20.0),
+                      style: TextStyle(
+                          fontSize: 20.0, fontWeight: FontWeight.bold),
                     ),
                     Divider(
                       height: 10,
@@ -216,9 +329,17 @@ class _ScreenBerryState extends State<ScreenBerry> {
                                         return _NoDataCircularProgressIndicator();
                                       } else {
                                         return DustStatusCircle(
-                                            DustStatus: mqttState
-                                                .messages[temptopic]![pm],
-                                            isFineDust: false);
+                                          DustStatus: mqttState
+                                              .messages[temptopic]![pm],
+                                          category: "미세먼지",
+                                          borderRadius: BorderRadius.only(
+                                              topLeft: Radius.circular(10),
+                                              topRight: Radius.circular(10)),
+                                          marginEdgeInsets: EdgeInsets.only(
+                                              top: 5, left: 5, right: 5),
+                                          paddingEdgeInsets:
+                                              EdgeInsets.only(top: 10),
+                                        );
                                       }
                                     } else {
                                       return _NoDataCircularProgressIndicator();
@@ -226,7 +347,27 @@ class _ScreenBerryState extends State<ScreenBerry> {
                                   },
                                 ),
                               ),
-                              Text('미세먼지')
+                              Container(
+                                child: Text(
+                                  '미세먼지',
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                alignment: Alignment.bottomCenter,
+                                padding: EdgeInsets.only(bottom: 1, top: 1),
+                                width: double.infinity,
+                                margin: EdgeInsets.only(
+                                    bottom: 5, left: 5, right: 5),
+                                decoration: BoxDecoration(
+                                    color: Colors.white70,
+                                    border: Border(
+                                        top: BorderSide(
+                                            width: 1, color: Colors.grey)),
+                                    borderRadius: BorderRadius.only(
+                                        bottomLeft: Radius.circular(10),
+                                        bottomRight: Radius.circular(10))),
+                              )
                             ],
                           ),
                         ),
@@ -251,9 +392,17 @@ class _ScreenBerryState extends State<ScreenBerry> {
                                         return _NoDataCircularProgressIndicator();
                                       } else {
                                         return DustStatusCircle(
-                                            DustStatus: mqttState
-                                                .messages[temptopic]![fpm],
-                                            isFineDust: false);
+                                          DustStatus: mqttState
+                                              .messages[temptopic]![fpm],
+                                          category: "초미세먼지",
+                                          borderRadius: BorderRadius.only(
+                                              topLeft: Radius.circular(10),
+                                              topRight: Radius.circular(10)),
+                                          marginEdgeInsets: EdgeInsets.only(
+                                              top: 5, left: 5, right: 5),
+                                          paddingEdgeInsets:
+                                              EdgeInsets.only(top: 10),
+                                        );
                                       }
                                     } else {
                                       return _NoDataCircularProgressIndicator();
@@ -261,7 +410,27 @@ class _ScreenBerryState extends State<ScreenBerry> {
                                   },
                                 ),
                               ),
-                              Text('초미세먼지')
+                              Container(
+                                child: Text(
+                                  '초미세먼지',
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                alignment: Alignment.bottomCenter,
+                                padding: EdgeInsets.only(bottom: 1, top: 1),
+                                width: double.infinity,
+                                margin: EdgeInsets.only(
+                                    bottom: 5, left: 5, right: 5),
+                                decoration: BoxDecoration(
+                                    color: Colors.white70,
+                                    border: Border(
+                                        top: BorderSide(
+                                            width: 1, color: Colors.grey)),
+                                    borderRadius: BorderRadius.only(
+                                        bottomLeft: Radius.circular(10),
+                                        bottomRight: Radius.circular(10))),
+                              )
                             ],
                           ),
                         ),
@@ -269,7 +438,8 @@ class _ScreenBerryState extends State<ScreenBerry> {
                     ),
                     Text(
                       '실외 미세먼지 현황',
-                      style: TextStyle(fontSize: 20.0),
+                      style: TextStyle(
+                          fontSize: 20.0, fontWeight: FontWeight.bold),
                     ),
                     Divider(
                       height: 10,
@@ -284,9 +454,53 @@ class _ScreenBerryState extends State<ScreenBerry> {
                             children: [
                               AspectRatio(
                                   aspectRatio: 1,
-                                  child: DustStatusCircle(
-                                      DustStatus: 60, isFineDust: false)),
-                              Text('미세먼지')
+                                  child: BlocBuilder<AirPollutionBloc,
+                                      AirPollutionState>(
+                                    builder: (context, airPollutionState) {
+                                      if (airPollutionState
+                                          is AirPollutionLoading) {
+                                        return _NoDataCircularProgressIndicator();
+                                      } else if (airPollutionState
+                                          is AirPollutionLoadedAirData) {
+                                        return DustStatusCircle(
+                                          DustStatus:
+                                              airPollutionState.pm!.toInt(),
+                                          category: "미세먼지",
+                                          borderRadius: BorderRadius.only(
+                                              topLeft: Radius.circular(10),
+                                              topRight: Radius.circular(10)),
+                                          marginEdgeInsets: EdgeInsets.only(
+                                              top: 5, left: 5, right: 5),
+                                          paddingEdgeInsets:
+                                              EdgeInsets.only(top: 10),
+                                        );
+                                      } else {
+                                        print('무엇이 문제');
+                                        return _NoDataCircularProgressIndicator();
+                                      }
+                                    },
+                                  )),
+                              Container(
+                                child: Text(
+                                  '미세먼지',
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                alignment: Alignment.bottomCenter,
+                                padding: EdgeInsets.only(bottom: 1, top: 1),
+                                width: double.infinity,
+                                margin: EdgeInsets.only(
+                                    bottom: 5, left: 5, right: 5),
+                                decoration: BoxDecoration(
+                                    color: Colors.white70,
+                                    border: Border(
+                                        top: BorderSide(
+                                            width: 1, color: Colors.grey)),
+                                    borderRadius: BorderRadius.only(
+                                        bottomLeft: Radius.circular(10),
+                                        bottomRight: Radius.circular(10))),
+                              )
                             ],
                           ),
                         ),
@@ -295,11 +509,55 @@ class _ScreenBerryState extends State<ScreenBerry> {
                           child: Column(
                             children: [
                               AspectRatio(
-                                aspectRatio: 1,
-                                child: DustStatusCircle(
-                                    DustStatus: 90, isFineDust: true),
-                              ),
-                              Text('초미세먼지')
+                                  aspectRatio: 1,
+                                  child: BlocBuilder<AirPollutionBloc,
+                                      AirPollutionState>(
+                                    builder: (context, airPollutionState) {
+                                      if (airPollutionState
+                                          is AirPollutionLoading) {
+                                        return _NoDataCircularProgressIndicator();
+                                      } else if (airPollutionState
+                                          is AirPollutionLoadedAirData) {
+                                        print("로드느뇜");
+                                        return DustStatusCircle(
+                                          DustStatus:
+                                              airPollutionState.fpm!.toInt(),
+                                          category: "초미세먼지",
+                                          borderRadius: BorderRadius.only(
+                                              topLeft: Radius.circular(10),
+                                              topRight: Radius.circular(10)),
+                                          marginEdgeInsets: EdgeInsets.only(
+                                              top: 5, left: 5, right: 5),
+                                          paddingEdgeInsets:
+                                              EdgeInsets.only(top: 10),
+                                        );
+                                      } else {
+                                        print('무엇이 문제');
+                                        return _NoDataCircularProgressIndicator();
+                                      }
+                                    },
+                                  )),
+                              Container(
+                                child: Text(
+                                  '초미세먼지',
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                alignment: Alignment.bottomCenter,
+                                padding: EdgeInsets.only(bottom: 1, top: 1),
+                                width: double.infinity,
+                                margin: EdgeInsets.only(
+                                    bottom: 5, left: 5, right: 5),
+                                decoration: BoxDecoration(
+                                    color: Colors.white70,
+                                    border: Border(
+                                        top: BorderSide(
+                                            width: 1, color: Colors.grey)),
+                                    borderRadius: BorderRadius.only(
+                                        bottomLeft: Radius.circular(10),
+                                        bottomRight: Radius.circular(10))),
+                              )
                             ],
                           ),
                         ),
@@ -307,74 +565,51 @@ class _ScreenBerryState extends State<ScreenBerry> {
                     ),
                   ],
                 ),
-                Container(
-                  height: 400,
-                  child: DefaultTabController(
-                      length: 4,
-                      child: Column(
-                        children: [
-                          TabBar(tabs: [
-                            Tab(
-                              text: 'PM 2.5',
-                            ),
-                            Tab(
-                              text: 'PM 10',
-                            ),
-                            Tab(
-                              text: '실내 온도',
-                            ),
-                            Tab(
-                              text: '실내 습도',
-                            )
-                          ]),
-                          Expanded(
-                              child: TabBarView(children: [
-                            Column(children: [
-                              SizedBox(
-                                height: 20,
-                              ),
-                              DustBarChart(
-                                dustData: pmData,
-                                title: '미세먼지',category: '미세먼지',
-                              )
-                            ]),
-                            Column(children: [
-                              SizedBox(
-                                height: 20,
-                              ),
-                              DustBarChart(
-                                dustData: fpmData,
-                                title: '초미세먼지',category: '초미세먼지',
-                              )
-                            ]),
-                            Column(children: [
-                              SizedBox(
-                                height: 20,
-                              ),
-                              DustBarChart(
-                                dustData: tempData,
-                                title: '온도',
-                                category: '온도',
-                              )
-                            ]),
-                            Column(children: [
-                              SizedBox(
-                                height: 20,
-                              ),
-                              DustBarChart(
-                                dustData: humData,
-                                title: '습도',
-                                category: '습도',
-                              )
-                            ]),
-                          ]))
-                        ],
-                      )),
-                ),
-                Text(
-                  'ScreenA',
-                  style: TextStyle(fontSize: 20.0),
-                ),
+                BlocBuilder<BerryChartDataBloc, BerryChartDataState>(
+                    builder: (context, state) {
+                  if (state is BerryChartDataInitial) {
+                    return Center(child: Text("날짜를 선택하세요."));
+                  } else if (state is BerryChartDataLoading) {
+                    return Center(
+                        child: CircularProgressIndicator()); // 로딩 중일 때 표시할 UI
+                  } else if (state is BerryChartDataLoaded) {
+                    return Container(
+                      height: 400,
+                      child: DefaultTabController(
+                          length: 4,
+                          child: Column(
+                            children: [
+                              TabBar(tabs: [
+                                Tab(
+                                  text: 'PM 10',
+                                ),
+                                Tab(
+                                  text: 'PM 2.5',
+                                ),
+                                Tab(
+                                  text: '실내 온도',
+                                ),
+                                Tab(
+                                  text: '실내 습도',
+                                )
+                              ]),
+                              Expanded(
+                                  child: TabBarView(children: [
+                                _buildScrollableChart(context,state.pmData, '미세먼지',
+                                    state.minPm, state.maxPm,state.currDate),
+                                _buildScrollableChart(context,state.fpmData, '초미세먼지',
+                                    state.minFpm, state.maxFpm,state.currDate),
+                                _buildScrollableChart(context,state.tempData, '온도',
+                                    state.minTemp, state.maxTemp,state.currDate),
+                                _buildScrollableChart(context,state.humData, '습도',
+                                    state.minHum, state.maxHum,state.currDate),
+                              ]))
+                            ],
+                          )),
+                    );
+                  }
+                  return Container();
+                }),
               ]
                   // child: ElevatedButton(
                   //   onPressed: () {Navigator.pop(ctx);},
@@ -387,17 +622,94 @@ class _ScreenBerryState extends State<ScreenBerry> {
   }
 }
 
+Widget _buildScrollableChart(BuildContext context,List<Map<String, dynamic>> data, String category,
+    double minY, double maxY,DateTime nowDate) {
+  String formattedDate = DateFormat('yyyy-MM-dd a').format(nowDate);
+  late DateTime dateMorning;
+  late DateTime dateAfternoon;
+  return Column(
+    children: [
+      Container(
+        margin: EdgeInsets.only(left: 20, right: 20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              flex: 1,
+              child: ElevatedButton(
+                onPressed: () {
+                  dateMorning = DateTime(nowDate.year,nowDate.month,nowDate.day,0,0);
+                  context.read<BerryChartDataBloc>().add(BerryChartDataByDate(dateMorning));
+                },
+                child: Text(
+                  '오전',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Palette.buttonColor),
+                ),
+                style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10))),
+              ),
+            ),
+            SizedBox(
+              width: 10,
+            ),
+            Expanded(
+                flex: 1,
+                child: ElevatedButton(
+                    onPressed: () {
+                      dateAfternoon = DateTime(nowDate.year,nowDate.month,nowDate.day,12,0);
+                      context.read<BerryChartDataBloc>().add(BerryChartDataByDate(dateAfternoon));
+                    },
+                    child: Text(
+                      '오후',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Palette.buttonColor),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)))))
+          ],
+        ),
+      ),
+
+      SizedBox(height: 10),
+      Expanded(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Container(
+            width: 2500, // 적절한 너비 설정
+            margin: EdgeInsets.only(top: 10),
+            child: DustBarChart(
+              dustData: data,
+              title: category,
+              category: category,
+              minY: minY,
+              maxY: maxY,
+            ),
+          ),
+        ),
+      ),
+      Container(alignment: Alignment.center,child: Text('검색 시간: $formattedDate',style: TextStyle(fontSize: 16,fontWeight: FontWeight.bold),),),
+    ],
+  );
+}
+
 Widget _NoDataCircularProgressIndicator() {
   return Container(
-      margin: EdgeInsets.all(5),
-      padding: EdgeInsets.all(0),
+      margin: EdgeInsets.only(top: 5, left: 5, right: 5),
+      padding: EdgeInsets.only(top: 10),
       //width: MediaQuery.of(context).size.width / 2 - 20,
       //1height: MediaQuery.of(context).size.width / 2 - 20,
       decoration: BoxDecoration(
-          color: Colors.white70,
-          borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(10),
-              bottomRight: Radius.circular(10))),
+        color: Colors.white70,
+        borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(10), topRight: Radius.circular(10)),
+      ),
       child: Stack(
         children: [Center(child: CircularProgressIndicator())],
       ));

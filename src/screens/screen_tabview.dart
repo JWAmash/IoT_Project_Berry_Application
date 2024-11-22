@@ -4,7 +4,6 @@ import 'package:iot_project_berry/src/blocs/timer_bloc.dart';
 import 'package:iot_project_berry/src/config/palette.dart';
 import 'package:iot_project_berry/src/screens/screen_doorLock_temporarypassword.dart';
 import 'package:iot_project_berry/src/screens/screen_home.dart';
-import 'package:iot_project_berry/src/screens/screen_password.dart';
 
 class MainTabView extends StatefulWidget {
   const MainTabView({super.key});

@@ -1,12 +1,13 @@
 import 'dart:async';
-import 'dart:ffi';
 import 'dart:math';
-
+import 'package:iot_project_berry/src/config/mqtt_topic.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:iot_project_berry/src/blocs/mqtt_bloc.dart';
 import 'package:iot_project_berry/src/blocs/timer_bloc.dart';
+import 'package:iot_project_berry/src/config/palette.dart';
+import 'package:mqtt_client/mqtt_client.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class ScreenTemporaryPassword extends StatefulWidget {
@@ -18,7 +19,8 @@ class ScreenTemporaryPassword extends StatefulWidget {
 }
 
 class _ScreenTemporaryPasswordState extends State<ScreenTemporaryPassword> {
-  //String? ti
+  //Topic
+  String TOPIC_FIRST_AUTH = 'door/first_auth2';
 
   String? _temporaryPassword;
   int _timeLeft = 0;
@@ -28,6 +30,7 @@ class _ScreenTemporaryPasswordState extends State<ScreenTemporaryPassword> {
   int defaulttime = 600;
   Timer? _timer;
   Timer? _tempTimer;
+  String? tempPassword;
 
   void startTimer(int seconds) {
     _timeLeft = seconds;
@@ -40,30 +43,10 @@ class _ScreenTemporaryPasswordState extends State<ScreenTemporaryPassword> {
         });
       } else {
         timer.cancel();
-        // setState(() {
-        //   //temporaryPassword = null;
-        // });
       }
     });
   }
 
-  void startTimer2(int seconds) {
-    _tempTimeLeft = seconds;
-    _tempTimer?.cancel();
-    _tempTimer = Timer.periodic(Duration(seconds: 1), (timer) {
-      if (_tempTimeLeft > 0) {
-        setState(() {
-          _tempTimeLeft--;
-          print('$_tempTimeLeft 남았다는데2');
-        });
-      } else {
-        timer.cancel();
-        setState(() {
-          _temporaryPassword = null;
-        });
-      }
-    });
-  }
 
   @override
   void dispose() {
@@ -75,7 +58,7 @@ class _ScreenTemporaryPasswordState extends State<ScreenTemporaryPassword> {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          title: Text('임시 비밀번호 발급'),
+          title: Text('임시 비밀번호 발급',style: TextStyle(fontWeight: FontWeight.bold),),
         ),
         body: Stack(children: [
           Container(
@@ -94,8 +77,13 @@ class _ScreenTemporaryPasswordState extends State<ScreenTemporaryPassword> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton(
-                    onPressed: () =>
-                        context.read<TimerBloc>().add(StartTimer()),
+                    onPressed: () {
+                      context.read<TimerBloc>().add(StartTimer());
+                      context.read<MqttBloc>().add(PublishMessage(
+                          topic: TOPIC_FIRST_AUTH,
+                          message: "{\"auth_status\": \"enable\"}"));
+                      //, \"temp_expiry\": \"$_endTime\"
+                    },
                     child: Container(
                       padding: EdgeInsets.all(10),
                       child: Column(
@@ -115,7 +103,7 @@ class _ScreenTemporaryPasswordState extends State<ScreenTemporaryPassword> {
                           Text(
                             '1차 인증 해제',
                             style: TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.bold),
+                                fontSize: 15, fontWeight: FontWeight.bold,color: Palette.buttonColor),
                           )
                         ],
                       ),
@@ -137,20 +125,38 @@ class _ScreenTemporaryPasswordState extends State<ScreenTemporaryPassword> {
                         ? '인증 해제: ${_timeLeft}'
                         // '인증 해제: ${_timeLeft ~/ 60}분 ${_timeLeft % 60}초'
                         : '1차 인증 필요',
-                    style: TextStyle(fontSize: 18),
+                    style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),
                   ),
-                  SizedBox(height: 40),
+                  SizedBox(height: 60),
 
                   ElevatedButton(
-                      onPressed: () =>
-                          _showDisposablePasswordDialog(context, '1회용 비밀번호'),
-                      child: Text('1회용 출입번호 발급')),
+                    onPressed: () =>
+                        _showDisposablePasswordDialog(context, '1회용 비밀번호'),
+                    child: Text(
+                      '1회용 출입번호 발급',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 18,color: Palette.buttonColor),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                        minimumSize: Size(220, 60), // 또는 원하는 최소 크기 지정
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10))),
+                  ),
 
-                  SizedBox(height: 10),
+                  SizedBox(height: 20),
                   ElevatedButton(
-                      onPressed: () =>
-                          _showTemporaryPasswordDialog(context, DateTime.now()),
-                      child: Text('임시 비밀번호 발급')),
+                    onPressed: () {
+                      _showTemporaryPasswordDialog(context, DateTime.now());
+                    },
+                    child: Text('임시 비밀번호 발급',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 18,color: Palette.buttonColor)),
+                    style: ElevatedButton.styleFrom(
+                        minimumSize: Size(220, 60),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10))),
+                  ),
+
                   // ElevatedButton(
                   //   onPressed: generateTemporaryPassword,
                   //   child: Text('임시 비밀번호 발급'),
@@ -296,8 +302,11 @@ class DisposablePasswordDialog extends StatefulWidget {
   _DisposablePasswordDialogState createState() =>
       _DisposablePasswordDialogState();
 }
-
+//1회용
 class _DisposablePasswordDialogState extends State<DisposablePasswordDialog> {
+  //Topic
+  String TOPIC_UPDATE_TEMP_PASSWORD = "door/update_temp_password";
+
   Timer? _timer;
   int _timeLeft = 0;
   String? _temporaryPassword;
@@ -364,26 +373,18 @@ class _DisposablePasswordDialogState extends State<DisposablePasswordDialog> {
                 height: 10,
               ),
               ElevatedButton(
-                onPressed: () => context.read<TimerBloc2>().add(StartTimer()),
+                onPressed: () {
+                  context.read<TimerBloc2>().add(StartTimer());
+                  context.read<MqttBloc>().add(PublishMessage(
+                      topic: MyTopic.TOPIC_UPDATE_Disposable_PASSWORD,
+                      message: '{"opt_number":"$_temporaryPassword"}'));
+                },
                 child: Text('발급'),
               )
             ],
           );
         },
       ),
-      // actions: <Widget>[
-      //   TextButton(
-      //     child: Text('취소'),
-      //     onPressed: () => Navigator.of(context).pop(),
-      //   ),
-      //   TextButton(
-      //     child: Text('저장'),
-      //     onPressed: () {
-      //       Navigator.of(context).pop();
-      //       context.read<TimerBloc2>().add(SetActiveStatus(false));
-      //     },
-      //   ),
-      // ],
     );
   }
 }
@@ -410,8 +411,13 @@ class TemporaryPasswordDialog extends StatefulWidget {
 }
 
 class _TemporaryPasswordDialogState extends State<TemporaryPasswordDialog> {
+  //Topic
+  String TOPIC_UPDATE_TEMP_PASSWORD = "door/update_temp_password";
+
   late DateTime selectedDay;
   late DateTime focusedDay;
+  String tempPassword = "123456";
+  String tempDat = "2024-11-06";
 
   @override
   void initState() {
@@ -464,23 +470,6 @@ class _TemporaryPasswordDialogState extends State<TemporaryPasswordDialog> {
                       },
                     ),
                   ),
-                  // Container(
-                  //     alignment: Alignment.center,
-                  //     color: Colors.purple,
-                  //     child: Text('5일')),
-                  // SizedBox(height: 5),
-                  // Row(
-                  //   children: [
-                  //     Container(
-                  //         color: Colors.yellow,
-                  //         alignment: Alignment.center,
-                  //         child: Text('!SADFASDf')),
-                  //     Container(
-                  //         color: Colors.brown,
-                  //         alignment: Alignment.center,
-                  //         child: Text('asdfasdf'))
-                  //   ],
-                  // ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -493,7 +482,24 @@ class _TemporaryPasswordDialogState extends State<TemporaryPasswordDialog> {
                         width: 30,
                       ),
                       ElevatedButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          setState(() {
+                            tempPassword = Random()
+                                .nextInt(999999)
+                                .toString()
+                                .padLeft(6, '0');
+                            tempDat =
+                                DateFormat('yyyy-MM-dd').format(selectedDay);
+                          });
+                          context.read<MqttBloc>().add(PublishMessage(
+                              topic: TOPIC_UPDATE_TEMP_PASSWORD,
+                              message: '{"temp_password":"$tempPassword",  "temp_expriy":"${DateFormat('yyyy-MM-dd').format(selectedDay)}"}'));
+                          print('{"temp_password":"$tempPassword",  "temp_expriy":"${DateFormat('yyyy-MM-dd').format(selectedDay)}"}');
+                          // context.read<MqttBloc>().add(PublishMessage(
+                          //     topic: TOPIC_UPDATE_TEMP_PASSWORD,
+                          //     message:
+                          //         "{\"temp_password\": \"$tempPassword\", \"temp_expiry\": \"$tempDat\"}"));
+                        },
                         child: Text('등록'),
                         style: ElevatedButton.styleFrom(
                             shape: RoundedRectangleBorder(
@@ -516,7 +522,7 @@ class _TemporaryPasswordDialogState extends State<TemporaryPasswordDialog> {
                           width: double.infinity,
                           alignment: Alignment.center,
                           color: Colors.blueAccent,
-                          child: Text('PASSWORD: 123456',
+                          child: Text('PASSWORD: $tempPassword',
                               style: TextStyle(
                                   fontSize: 20, fontWeight: FontWeight.bold))),
                       Container(
@@ -524,7 +530,7 @@ class _TemporaryPasswordDialogState extends State<TemporaryPasswordDialog> {
                           alignment: Alignment.center,
                           width: double.infinity,
                           child: Text(
-                            '유효기간: 2024-11-07',
+                            '유효기간: $tempDat',
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold),
                           ))
@@ -536,21 +542,6 @@ class _TemporaryPasswordDialogState extends State<TemporaryPasswordDialog> {
           ],
         ),
       ),
-      // actions: <Widget>[
-      //   TextButton(
-      //     child: Text('취소'),
-      //     onPressed: () {
-      //       Navigator.of(context).pop();
-      //     },
-      //   ),
-      //   TextButton(
-      //     child: Text('저장'),
-      //     onPressed: () {
-      //       // 설정 저장 로직
-      //       Navigator.of(context).pop();
-      //     },
-      //   ),
-      // ],
     );
   }
 }

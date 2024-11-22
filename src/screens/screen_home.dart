@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:iot_project_berry/src/blocs/airpollution_bloc.dart';
+import 'package:iot_project_berry/src/blocs/berrychart_bloc.dart';
 import 'package:iot_project_berry/src/blocs/location_state.dart';
 import 'package:iot_project_berry/src/blocs/mqtt_bloc.dart';
 import 'package:iot_project_berry/src/blocs/weather_bloc.dart';
+import 'package:iot_project_berry/src/config/palette.dart';
+import 'package:iot_project_berry/src/screens/ScreenB.dart';
 import 'package:iot_project_berry/src/screens/screenBerry.dart';
 import 'package:iot_project_berry/src/screens/screenBlind.dart';
 import 'package:iot_project_berry/src/screens/screenDoorLock.dart';
@@ -23,7 +27,8 @@ class _MainScreenState extends State<MainScreen> {
   final String pm = "pm2.5";
   final String fpm = "pm10";
   final String temp = "temp";
-  final String humidity = "humidity";
+  final String humidity = "hum";
+
   //final String address='';
 
   String getSystemTime() {
@@ -47,10 +52,17 @@ class _MainScreenState extends State<MainScreen> {
         elevation: 0.0,
         actions: [
           IconButton(
-              onPressed: () {
-                print('설정 버튼 클릭');
-              },
-              icon: Icon(Icons.search))
+              onPressed: () =>
+                  context.read<LocationBloc>().add(GetMyCurrentLocation()),
+              icon: Icon(Icons.location_on),
+          tooltip: '현재 위치를 다시 검색합니다.',),
+          IconButton(
+              onPressed: () => context.read<WeatherBloc>().add(FetchWeather(
+                    latx: context.read<LocationBloc>().latx!,
+                    laty: context.read<LocationBloc>().laty!,
+                  )),
+              icon: Icon(Icons.refresh),
+          tooltip: '날씨 새로고침 기능입니다.\n날씨 정보를 새로 받아옵니다.',)
         ],
       ),
       // drawer: Drawer(
@@ -130,7 +142,6 @@ class _MainScreenState extends State<MainScreen> {
                   //여기부터
                   Column(
                     children: [
-
                       BlocBuilder<LocationBloc, LocationState>(
                         builder: (context, locationState) {
                           if (locationState is LocationLoading) {
@@ -142,7 +153,12 @@ class _MainScreenState extends State<MainScreen> {
                               alignment: Alignment.center,
                               //margin: EdgeInsets.only(left: 40),
                               child: Text(
-                                  '주소: ${loadedState.address}',style: TextStyle(fontSize: 18,color: Colors.white,fontWeight: FontWeight.bold),),
+                                '주소: ${loadedState.address}',
+                                style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold),
+                              ),
                             );
                           } else if (locationState is LocationError) {
                             return Text(locationState.message);
@@ -181,6 +197,7 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ],
                   ),
+
                   //여기까지
                   const SizedBox(
                     height: 20,
@@ -222,14 +239,14 @@ class _MainScreenState extends State<MainScreen> {
                                     return DustStatusCircle(
                                       DustStatus:
                                           mqttState.messages[temptopic]![pm],
-                                      isFineDust: false,
-                                      borderRadius: BorderRadius.only(
+                                      category: "초미세먼지",
+                                      borderRadius: const BorderRadius.only(
                                           bottomLeft: Radius.circular(10),
                                           bottomRight: Radius.circular(10)),
-                                      marginEdgeInsets: EdgeInsets.only(
+                                      marginEdgeInsets: const EdgeInsets.only(
                                           bottom: 5, right: 5, left: 5),
                                       paddingEdgeInsets:
-                                          EdgeInsets.only(top: 5),
+                                          const EdgeInsets.only(top: 5),
                                     );
                                   }
                                 } else {
@@ -275,7 +292,7 @@ class _MainScreenState extends State<MainScreen> {
                                     return DustStatusCircle(
                                         DustStatus:
                                             mqttState.messages[temptopic]![fpm],
-                                        isFineDust: false,
+                                        category: "미세먼지",
                                         borderRadius: BorderRadius.only(
                                             bottomLeft: Radius.circular(10),
                                             bottomRight: Radius.circular(10)),
@@ -328,8 +345,8 @@ class _MainScreenState extends State<MainScreen> {
                                   } else {
                                     return DustStatusCircle(
                                       DustStatus:
-                                          mqttState.messages[temptopic]![temp],
-                                      isFineDust: false,
+                                          mqttState.messages[temptopic]![temp].toInt(),
+                                      category: "온도",
                                       borderRadius: BorderRadius.only(
                                           bottomLeft: Radius.circular(10),
                                           bottomRight: Radius.circular(10)),
@@ -363,7 +380,7 @@ class _MainScreenState extends State<MainScreen> {
                                       topLeft: Radius.circular(10),
                                       topRight: Radius.circular(10))),
                               child: Text(
-                                "실외 습도",
+                                "실내 습도",
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               )),
                           AspectRatio(
@@ -382,8 +399,8 @@ class _MainScreenState extends State<MainScreen> {
                                   } else {
                                     return DustStatusCircle(
                                         DustStatus: mqttState
-                                            .messages[temptopic]![humidity],
-                                        isFineDust: false,
+                                            .messages[temptopic]![humidity].toInt(),
+                                        category: "습도",
                                         borderRadius: BorderRadius.only(
                                             bottomLeft: Radius.circular(10),
                                             bottomRight: Radius.circular(10)),
@@ -417,8 +434,7 @@ class _MainScreenState extends State<MainScreen> {
                             width: 150,
                             child: Text(
                               '기기별 제어',
-                              style: GoogleFonts.lato(
-                                  fontSize: 17.0, color: Colors.black87),
+                                style: TextStyle(fontWeight: FontWeight.bold,fontSize: 18)
                             ),
                           ),
                           SizedBox(
@@ -434,21 +450,63 @@ class _MainScreenState extends State<MainScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          //BlocProvider(create: )
-                          _buildHomeButton(
-                              context,
-                              "베리",
-                              ScreenBerry(),
-                              Icon(
-                                Icons.speaker,
-                                color: Color(0xFF5985E1),
-                              )),
+                          Container(
+                            width: 130,
+                            height: 70,
+                            margin: EdgeInsets.all(10),
+                            child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (context) =>
+                                              MultiBlocProvider(providers: [
+                                                BlocProvider<
+                                                        BerryChartDataBloc>(
+                                                    create: (context) =>
+                                                        BerryChartDataBloc()),
+                                                BlocProvider<AirPollutionBloc>(
+                                                  create: (context) =>
+                                                      AirPollutionBloc(),
+                                                )
+                                              ], child: ScreenBerry())));
+                                },
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.speaker,
+                                      size: 35,
+                                      color: Color(0xFF5985E1),
+                                    ),
+                                    Text(
+                                      "베리",
+                                      style: TextStyle(
+                                          fontSize: 18.0,
+                                          color: Palette.buttonColor,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                    shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ))),
+                          ),
+                          // _buildHomeButton(
+                          //     context,
+                          //     "베리",
+                          //     ScreenBerry(),
+                          //     Icon(
+                          //       Icons.speaker,
+                          //       color: Color(0xFF5985E1),
+                          //     )),
                           _buildHomeButton(
                               context,
                               "도어락",
                               screenDoorLock(),
                               Icon(Icons.meeting_room,
-                                  color: Color(0xFF5985E1))),
+                                  size: 35, color: Color(0xFF5985E1))),
                         ],
                       ),
                       Row(
@@ -461,9 +519,14 @@ class _MainScreenState extends State<MainScreen> {
                               Icon(
                                 Icons.blinds,
                                 color: Color(0xFF5985E1),
+                                size: 35,
                               )),
-                          _buildHomeButton(context, "조명", screenLantern(),
-                              Icon(Icons.light, color: Color(0xFF5985E1))),
+                          _buildHomeButton(
+                              context,
+                              "조명",
+                              screenLantern(),
+                              Icon(Icons.light,
+                                  size: 35, color: Color(0xFF5985E1))),
                         ],
                       ),
                     ],
@@ -474,26 +537,26 @@ class _MainScreenState extends State<MainScreen> {
           ],
         ),
       )),
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            heroTag: 'restartlocation',
-            onPressed: () =>
-                context.read<LocationBloc>().add(GetMyCurrentLocation()),
-            child: Icon(Icons.location_on),
-          ),
-          SizedBox(width: 10),
-          FloatingActionButton(
-            heroTag: 'restartweather',
-            onPressed: () => context.read<WeatherBloc>().add(FetchWeather(
-                  latx: context.read<LocationBloc>().latx!,
-                  laty: context.read<LocationBloc>().laty!,
-                )),
-            child: Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      // floatingActionButton: Row(
+      //   mainAxisAlignment: MainAxisAlignment.end,
+      //   children: [
+      //     FloatingActionButton(
+      //       heroTag: 'restartlocation',
+      //       onPressed: () =>
+      //           context.read<LocationBloc>().add(GetMyCurrentLocation()),
+      //       child: Icon(Icons.location_on),
+      //     ),
+      //     SizedBox(width: 10),
+      //     FloatingActionButton(
+      //       heroTag: 'restartweather',
+      //       onPressed: () => context.read<WeatherBloc>().add(FetchWeather(
+      //             latx: context.read<LocationBloc>().latx!,
+      //             laty: context.read<LocationBloc>().laty!,
+      //           )),
+      //       child: Icon(Icons.refresh),
+      //     ),
+      //   ],
+      // ),
     );
   }
 }
@@ -506,7 +569,7 @@ Widget _buildHomeButton(
     margin: EdgeInsets.all(10),
     child: ElevatedButton(
       onPressed: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+        Navigator.push(context, MaterialPageRoute(builder: (context) => page));
       },
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -514,7 +577,10 @@ Widget _buildHomeButton(
           icon,
           Text(
             title,
-            style: TextStyle(fontSize: 18.0),
+            style: TextStyle(
+                fontSize: 18.0,
+                color: Palette.buttonColor,
+                fontWeight: FontWeight.bold),
           ),
         ],
       ),

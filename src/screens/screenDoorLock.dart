@@ -4,7 +4,10 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:iot_project_berry/src/blocs/mqtt_bloc.dart';
+import 'package:iot_project_berry/src/config/mqtt_topic.dart';
+import 'package:iot_project_berry/src/config/palette.dart';
 import 'package:iot_project_berry/src/screens/screenDoorLock_LogScreen.dart';
 import 'package:iot_project_berry/src/screens/screen_doorLock_temporarypassword.dart';
 import 'package:iot_project_berry/src/screens/screen_doorlock_faceadd.dart';
@@ -17,11 +20,23 @@ class screenDoorLock extends StatefulWidget {
 }
 
 class _screenDoorLockState extends State<screenDoorLock> {
-  final String doorLockTopic = "flutter/doorlock/control";
   List<Map<String, dynamic>> familyList=[];
   List<Map<String, dynamic>> acquaintanceList=[];
-
-
+  //Topic
+  late DateTime twoDaysAgo;
+  late String twoDaysAgoString;
+  late String todaytoString;
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    //DateTime nowDate= DateTime.now();
+    DateTime nowDate= DateTime.now();
+    twoDaysAgo = nowDate.subtract(Duration(days: 7));
+    todaytoString = '${nowDate.year}${nowDate.month.toString().padLeft(2,'0')}${nowDate.day.toString().padLeft(2,'0')}';
+    twoDaysAgoString =
+    '${twoDaysAgo.year}${twoDaysAgo.month.toString().padLeft(2, '0')}${twoDaysAgo.day.toString().padLeft(2, '0')}';
+  }
   final List<Map<String, dynamic>> statistics = [
     {"title": "사람 A", "category": "가족", "value": '2024/05/16'},
     {"title": "사람 B", "category": "지인", "value": '2024/05/16'},
@@ -34,6 +49,8 @@ class _screenDoorLockState extends State<screenDoorLock> {
   ];
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+
 
   Future<List<Map<String, dynamic>>> _fetchPeople(String category) async {
     if (category == '가족') {
@@ -58,6 +75,24 @@ class _screenDoorLockState extends State<screenDoorLock> {
       return [];
     }
   }
+  Future<Map<String, dynamic>?> _getEntryLog() async {
+    print('검색날짜: $todaytoString');
+    final docRef = FirebaseFirestore.instance
+        .collection('data')
+        .doc('doorlock')
+        .collection('todayFamilyLogs')
+        .doc(todaytoString);  // 여기에 실제 문서 ID를 넣어주세요
+
+    final docSnapshot = await docRef.get();
+
+    if (docSnapshot.exists) {
+      return docSnapshot.data() as Map<String, dynamic>;
+    } else {
+      print('문서가 존재하지 않습니다.');
+      return null;
+    }
+  }
+
 
   // 등록인원 목록 카드
   Widget _buildCard(Map<String, dynamic> person) {
@@ -342,7 +377,7 @@ class _screenDoorLockState extends State<screenDoorLock> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('도어락'),
+        title: Text('도어락',style: TextStyle(fontWeight: FontWeight.bold),),
         actions: [
           PopupMenuButton<int>(
             position: PopupMenuPosition.under,
@@ -394,32 +429,83 @@ class _screenDoorLockState extends State<screenDoorLock> {
                   Container(
                     width: double.infinity,
                     height: 300,
-                    color: Colors.green,
+                    color: Colors.blueAccent,
                     child: Stack(
                       children: [
-                        Container(
-                          padding: EdgeInsets.only(left: 15, top: 15),
-                          child: Text(
-                            '금일 가족 출입',
-                            style:
-                            TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                          ),
+                        // Container(
+                        //   padding: EdgeInsets.only(left: 15, top: 15),
+                        //   child: Text(
+                        //     '금일 가족 출입',
+                        //     style:
+                        //     TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        //   ),
+                        // ),
+
+                        FutureBuilder<Map<String, dynamic>?>(
+                          future: _getEntryLog(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return Center(child: CircularProgressIndicator());
+                            } else if (snapshot.hasError) {
+                              return Center(child: Text('오류가 발생했습니다: ${snapshot.error}'));
+                            } else if (!snapshot.hasData || snapshot.data == null) {
+                              return Center(child: Text('데이터가 없습니다.'));
+                            } else {
+                              final data = snapshot.data!;
+                              final entries = (data['entries'] as List<dynamic>?) ?? [];
+                              print("이데이터 : $data");
+
+                              return Column(
+                                children: [
+                                  Padding(
+                                    padding: EdgeInsets.all(16.0),
+                                    child: Text(
+                                      '오늘의 가족 출입 로그',
+                                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  SizedBox(height: 10),
+                                  Container(
+                                    height: 150, // 이미지 컨테이너의 높이 설정
+                                    child: ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: entries.length,
+                                      itemBuilder: (context, index) {
+                                        final item = entries[index] as Map<String, dynamic>;
+                                        print('이건데 ${item['imageUrls']}');
+
+                                        return Padding(
+                                          padding: EdgeInsets.symmetric(horizontal: 8),
+                                          child: Container(
+                                            color: Colors.white,
+                                            child: Column(
+                                              children: [
+                                                Image.network(
+                                                  item['imageUrls'],
+                                                  width: 110,
+                                                  height: 120,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                                SizedBox(height: 5),
+                                                Text(item['name'],style: TextStyle(fontWeight: FontWeight.bold,fontSize: 16),),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  // 여기에 추가적인 정보를 표시할 수 있습니다.
+                                ],
+                              );
+                            }
+                          },
                         ),
-                        Center(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              Icon(Icons.account_circle,size: 80,),
-                              Icon(Icons.account_circle,size: 80,),
-                              Icon(Icons.account_circle,size: 80,)
-                            ],
-                          ),
-                        )
                       ],
                     ),
                   ),
                   Container(
-                    //height: 400,
+                    height: 200,
                     //padding: EdgeInsets.all(20),
                     margin: EdgeInsets.all(20),
                     child: Column(
@@ -433,20 +519,82 @@ class _screenDoorLockState extends State<screenDoorLock> {
                               style: TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 16),
                             )),
-                        Container(
-                          height: 150,
-                          child: ListView.builder(
-                            itemCount: statistics.length,
-                            itemBuilder: (context, index) {
-                              return ListTile(
-                                title: Text(
-                                    '${statistics[index]['category']}  : ${statistics[index]['title']}'),
-                                subtitle:
-                                    Text('출입일: ${statistics[index]['value']}'),
+                        // Container(
+                        //   height: 150,
+                        //   child: ListView.builder(
+                        //     itemCount: statistics.length,
+                        //     itemBuilder: (context, index) {
+                        //       return ListTile(
+                        //         title: Text(
+                        //             '${statistics[index]['category']}  : ${statistics[index]['title']}'),
+                        //         subtitle:
+                        //             Text('출입일: ${statistics[index]['value']}'),
+                        //       );
+                        //     },
+                        //   ),
+                        // ),
+                        StreamBuilder<QuerySnapshot>(stream: _firestore
+                            .collection('data')
+                            .doc('doorlock')
+                            .collection('entry_logs')
+                            .where(FieldPath.documentId,
+                            isGreaterThanOrEqualTo: twoDaysAgoString)
+                        // .orderBy(FieldPath.documentId, descending: true)
+                            .snapshots()
+                          , builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              return Text("오류발생");
+                            } else if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              print('몇번가져오는지2');
+                              return CircularProgressIndicator();
+                            } else if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                              return Center(child: Text("데이터가 없습니다"));
+                            } else {
+                              final logs= snapshot.data!.docs;
+
+                              return Expanded(
+                                  child: ListView.separated(
+                                    itemCount: logs.length,
+                                    separatorBuilder: (BuildContext context, int index) =>
+                                        Divider(),
+                                    itemBuilder: (context, index) {
+                                      print('몇번가져오는지3');
+
+                                      DocumentSnapshot document=logs[logs.length-1-index];
+                                      // if(desc){
+                                      //    document = logs[logs.length - 1 - index];
+                                      // }else{
+                                      //   document = logs[index];
+                                      // }
+
+
+                                      Map<String, dynamic> data =
+                                      document.data() as Map<String, dynamic>;
+                                      String docId = document.id;
+
+
+                                      print("받은 기록데이터: $data");
+                                      Timestamp time = data['time'];
+                                      String name = data['name']??'이름 없음';
+                                      String method = data['method'];
+                                      String category = data['category'];
+                                      String opTime = DateFormat('yyyy/MM/dd a hh:mm')
+                                          .format(time.toDate());
+
+                                      return ListTile(
+                                        title: Text('작동시간: ${opTime}'),
+                                        subtitle: Text(
+                                          '카테고리: ${category} / 이름: $name / 작동방식: ${method}',
+                                          style: TextStyle(
+                                              fontSize: 16, fontWeight: FontWeight.bold),
+                                        ),
+                                      );
+                                    },
+                                  )
                               );
-                            },
-                          ),
-                        ),
+                            }
+                          },)
                       ],
                     ),
                     decoration: BoxDecoration(
@@ -460,24 +608,30 @@ class _screenDoorLockState extends State<screenDoorLock> {
                         ElevatedButton(
                           onPressed: () {
                             context.read<MqttBloc>().add(
-                                PublishMessage(topic: doorLockTopic, message: 'open'));
+                                PublishMessage(topic: MyTopic.doorLockUnLockTopic, message: '{"unlock" : "true"}'));
                           },
                           child: Text(
                             'OPEN',
-                            style: TextStyle(fontSize: 20),
+                            style: TextStyle(fontSize: 24,fontWeight: FontWeight.bold,color: Palette.buttonColor),
                           ),
                           style: ElevatedButton.styleFrom(
-                            minimumSize: Size(200, 60),
+                            minimumSize: Size(250, 60),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                  BorderRadius.circular(10))
                           ),
                         ),
                         ElevatedButton(
                           onPressed: () {},
                           child: Text(
                             'CCTV 확인',
-                            style: TextStyle(fontSize: 20),
+                            style: TextStyle(fontSize: 24,fontWeight: FontWeight.bold,color: Palette.buttonColor),
                           ),
                           style: ElevatedButton.styleFrom(
-                            minimumSize: Size(200, 60),
+                            minimumSize: Size(250, 60),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                  BorderRadius.circular(10))
                           ),
                         ),
                         // ElevatedButton(
@@ -587,8 +741,9 @@ class _screenDoorLockState extends State<screenDoorLock> {
                                               person['category'] = '가족';
                                               return person;
                                             }).toList();
-                                  return SizedBox(
+                                  return Container(
                                     height: 150,
+
                                     child: ListView.builder(
                                       scrollDirection: Axis.horizontal,
                                       itemCount: snapshot.data!.docs.length,

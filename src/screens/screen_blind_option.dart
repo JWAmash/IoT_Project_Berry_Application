@@ -2,6 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:iot_project_berry/src/blocs/mqtt_bloc.dart';
+import 'package:iot_project_berry/src/config/mqtt_topic.dart';
 import 'package:sleek_circular_slider/sleek_circular_slider.dart';
 
 class ScreenBlindOption extends StatefulWidget {
@@ -17,6 +20,10 @@ class _ScreenBlindOptionState extends State<ScreenBlindOption> {
   List<String> dropDownListCategory = ["내림", "올림"];
   String selectedOperation1 = '내림';
   String selectedOperation2 = '내림';
+
+  //텍스트필드 컨트롤러
+  final TextEditingController _minDistanceController = TextEditingController();
+  final TextEditingController _maxDistanceController = TextEditingController();
 
   @override
   void initState() {
@@ -37,9 +44,13 @@ class _ScreenBlindOptionState extends State<ScreenBlindOption> {
         setState(() {
           sensorLowerLimit = document['sensorLowerLimit'];
           sensorUpperLimit = document['sensorUpperLimit'];
-          selectedOperation1 = document['lowerOperiation'];
-          selectedOperation2 = document['upperOperiation'];
+          selectedOperation1 = document['lowerOperation'];
+          selectedOperation2 = document['upperOperation'];
+          _minDistanceController.text = document['motorLowerLimit'].toString();
+          _maxDistanceController.text = document['motorUpperLimit'].toString();
         });
+        print(_minDistanceController.text);
+
       } else {
         print('Document does not exist');
       }
@@ -52,7 +63,7 @@ class _ScreenBlindOptionState extends State<ScreenBlindOption> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('설정'),
+        title: Text('블라인드 설정',style: TextStyle(fontWeight: FontWeight.bold),),
       ),
       body: Stack(children: [
         Container(
@@ -89,13 +100,14 @@ class _ScreenBlindOptionState extends State<ScreenBlindOption> {
                               border:
                                   Border.all(color: Colors.black, width: 2.0)),
                           margin: EdgeInsets.all(5),
-                          padding: EdgeInsets.all(20),
+                          padding: EdgeInsets.only(top: 20,left: 20,right: 20),
                           height: double.infinity,
                           // color: Colors.green,
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Container(
+                                padding: EdgeInsets.only(bottom: 10),
                                 child: Text(
                                   '최소 거리',
                                   style: TextStyle(
@@ -109,6 +121,7 @@ class _ScreenBlindOptionState extends State<ScreenBlindOption> {
                                   SizedBox(
                                     width: 100, // 원하는 폭으로 설정 (예: 100)
                                     child: TextField(
+                                      controller: _minDistanceController,
                                       keyboardType: TextInputType.number,
                                       // 숫자 키패드 표시
                                       inputFormatters: <TextInputFormatter>[
@@ -134,23 +147,95 @@ class _ScreenBlindOptionState extends State<ScreenBlindOption> {
                                     child: Text('cm'),
                                   ),
                                 ],
-                              )
+                              ),
+                              SizedBox(height: 10,),
+                              ElevatedButton(onPressed: (){
+                                if(int.parse(_minDistanceController.text)<5){
+                                  showDialog(
+                                    context: context,
+                                    builder:
+                                        (BuildContext context) {
+                                      return AlertDialog(
+                                        title: Text('경고'),
+                                        content: Text(
+                                            '최소 높이는 5보다 낮을 수 없습니다'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.of(
+                                                  context)
+                                                  .pop(); // 팝업 닫기
+                                            },
+                                            child: Text('확인'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                }
+                                else if (int.parse(_minDistanceController.text)>=int.parse(_maxDistanceController.text)) {
+                                  showDialog(
+                                    context: context,
+                                    builder:
+                                        (BuildContext context) {
+                                      return AlertDialog(
+                                        title: Text('경고'),
+                                        content: Text(
+                                            '최소 높이는 최대 높이보다 크거나 같을 수 없습니다'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.of(
+                                                  context)
+                                                  .pop(); // 팝업 닫기
+                                            },
+                                            child: Text('확인'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                } else {
+                                  FirebaseFirestore.instance
+                                      .collection('config')
+                                      .doc('blind')
+                                      .update({
+                                    'motorLowerLimit':
+                                    int.parse(_minDistanceController.text)
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('설정이 저장되었습니다.')),
+                                  );
+                                  context.read<MqttBloc>().add(
+                                      PublishMessage(topic: MyTopic.blindSetting, message: '{"motorLowerLimit": ${int.parse(_minDistanceController.text)}'));
+                                }
+
+
+
+
+                              }, child: Text('저장',style: TextStyle(fontSize: 16,fontWeight: FontWeight.bold),),style: ElevatedButton.styleFrom(
+                                minimumSize: Size(130, 40),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                      BorderRadius.circular(10))
+                              ))
                             ],
                           ),
                         )),
                         Expanded(
                             child: Container(
                           margin: EdgeInsets.all(5),
-                          padding: EdgeInsets.all(20),
+                          padding: EdgeInsets.only(top: 20,left: 20,right: 20),
                           decoration: BoxDecoration(
                               color: Colors.white,
                               border:
                                   Border.all(color: Colors.black, width: 2.0)),
                           height: double.infinity,
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Container(
+                                padding: EdgeInsets.only(bottom: 10),
                                 child: Text(
                                   '최대 거리',
                                   style: TextStyle(
@@ -164,6 +249,7 @@ class _ScreenBlindOptionState extends State<ScreenBlindOption> {
                                   SizedBox(
                                     width: 100, // 원하는 폭으로 설정 (예: 100)
                                     child: TextField(
+                                      controller: _maxDistanceController,
                                       keyboardType: TextInputType.number,
                                       // 숫자 키패드 표시
                                       inputFormatters: <TextInputFormatter>[
@@ -189,7 +275,78 @@ class _ScreenBlindOptionState extends State<ScreenBlindOption> {
                                     child: Text('cm'),
                                   ),
                                 ],
-                              )
+                              ),
+                              SizedBox(height: 10,),
+                              ElevatedButton(onPressed: (){
+                                if(int.parse(_maxDistanceController.text)>100){
+                                  showDialog(
+                                    context: context,
+                                    builder:
+                                        (BuildContext context) {
+                                      return AlertDialog(
+                                        title: Text('경고'),
+                                        content: Text(
+                                            '최대 높이는 100을 넘어갈 수 없습니다'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.of(
+                                                  context)
+                                                  .pop(); // 팝업 닫기
+                                            },
+                                            child: Text('확인'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                }
+                                else if (int.parse(_maxDistanceController.text)<=int.parse(_minDistanceController.text)) {
+                                  showDialog(
+                                    context: context,
+                                    builder:
+                                        (BuildContext context) {
+                                      return AlertDialog(
+                                        title: Text('경고'),
+                                        content: Text(
+                                            '최대 높이는 최소 높이보다 작거나 같을 수 없습니다'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.of(
+                                                  context)
+                                                  .pop(); // 팝업 닫기
+                                            },
+                                            child: Text('확인'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                } else {
+                                  FirebaseFirestore.instance
+                                      .collection('config')
+                                      .doc('blind')
+                                      .update({
+                                    'motorUpperLimit':
+                                    int.parse(_maxDistanceController.text)
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('설정이 저장되었습니다.')),
+                                  );
+                                  context.read<MqttBloc>().add(
+                                      PublishMessage(topic: MyTopic.blindSetting, message: '{"motorUpperLimit": ${int.parse(_minDistanceController.text)}'));
+                                }
+
+
+
+
+                              }, child: Text('저장',style: TextStyle(fontSize: 16,fontWeight: FontWeight.bold),),style: ElevatedButton.styleFrom(
+                                  minimumSize: Size(130, 40),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                      BorderRadius.circular(10))
+                              ))
                             ],
                           ),
                         ))
@@ -344,10 +501,15 @@ class _ScreenBlindOptionState extends State<ScreenBlindOption> {
                                                       .update({
                                                     'sensorLowerLimit':
                                                         sensorLowerLimit,
-                                                    'lowerOperiation':
+                                                    'lowerOperation':
                                                         selectedOperation1
                                                     // 초 단위로 저장
                                                   });
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    const SnackBar(content: Text('설정이 저장되었습니다.')),
+                                                  );
+                                                  context.read<MqttBloc>().add(
+                                                      PublishMessage(topic: MyTopic.blindSetting, message: '{"sensorLowerLimit": $sensorLowerLimit,"lowerOperation": $selectedOperation1'));
                                                 } else {
                                                   showDialog(
                                                     context: context,
@@ -508,9 +670,11 @@ class _ScreenBlindOptionState extends State<ScreenBlindOption> {
                                                     .update({
                                                   'sensorUpperLimit':
                                                       sensorUpperLimit,
-                                                  'upperOperiation':
+                                                  'upperOperation':
                                                       selectedOperation2
                                                 });
+                                                context.read<MqttBloc>().add(
+                                                    PublishMessage(topic: MyTopic.blindSetting, message: '{"sensorUpperLimit": $sensorUpperLimit,"upperOperation": $selectedOperation2'));
                                               } else {
                                                 showDialog(
                                                   context: context,

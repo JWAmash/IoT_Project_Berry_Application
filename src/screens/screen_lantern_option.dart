@@ -37,8 +37,8 @@ class _ScreenLanternOptionState extends State<ScreenLanternOption> {
         setState(() {
           sensorLowerLimit = document['sensorLowerLimit'];
           sensorUpperLimit = document['sensorUpperLimit'];
-          selectedOperation1 = document['lowerOperiation'];
-          selectedOperation2 = document['upperOperiation'];
+          selectedOperation1 = document['lowerOperation'];
+          selectedOperation2 = document['upperOperation'];
         });
       } else {
         print('Document does not exist');
@@ -52,7 +52,7 @@ class _ScreenLanternOptionState extends State<ScreenLanternOption> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('설정'),
+        title: Text('조명 설정',style: TextStyle(fontWeight: FontWeight.bold),),
       ),
       body: Stack(children: [
         Container(
@@ -348,7 +348,7 @@ class _ScreenLanternOptionState extends State<ScreenLanternOption> {
                                                       .update({
                                                     'sensorLowerLimit':
                                                         sensorLowerLimit,
-                                                    'lowerOperiation':
+                                                    'lowerOperation':
                                                         selectedOperation1
                                                   });
                                                 } else {
@@ -511,7 +511,7 @@ class _ScreenLanternOptionState extends State<ScreenLanternOption> {
                                                     .update({
                                                   'sensorUpperLimit':
                                                       sensorUpperLimit,
-                                                  'upperOperiation':
+                                                  'upperOperation':
                                                       selectedOperation2
                                                 });
                                               } else {
