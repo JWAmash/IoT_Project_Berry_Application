@@ -7,9 +7,16 @@ class DustBarChart extends StatefulWidget {
   final List<Map<String, dynamic>> dustData;
   final String title;
   final String category;
+  final double minY;
+  final double maxY;
 
   const DustBarChart(
-      {super.key, required this.dustData, required this.title, required this.category});
+      {super.key,
+      required this.dustData,
+      required this.title,
+      required this.category,
+      required this.minY,
+      required this.maxY});
 
   State<DustBarChart> createState() => _DustBarChartState();
 }
@@ -65,7 +72,6 @@ class _DustBarChartState extends State<DustBarChart> {
   Color getColorByTempValue(double value) {
     if (value >= 28) {
       return Palette.tempColor1;
-
     }
     // 매우 차가운 상태
     else if (value >= 23) {
@@ -73,119 +79,169 @@ class _DustBarChartState extends State<DustBarChart> {
     } // 찬 상태
     else if (value >= 20) {
       return Palette.tempColor3;
-    }
-    else if (value >= 17) {
+    } else if (value >= 17) {
       return Palette.tempColor4;
-    }
-    else if (value >= 12) {
+    } else if (value >= 12) {
       return Palette.tempColor5;
-    }
-    else if (value >= 9) {
+    } else if (value >= 9) {
       return Palette.tempColor6;
-    }
-    else if (value >= 5) {
+    } else if (value >= 5) {
       return Palette.tempColor7;
-    }
-    else {
+    } else {
       return Palette.tempColor8;
     } // 매우 뜨거운 상태
   }
 
   Color getColorByHumValue(double value) {
-    if (value < 30) {
+    // 매우건조한 상태
+    if (value < 20) {
       return Colors.red;
-    } // 매우 건조한 상태
-    else if (value < 50) {
+    } //건조
+    else if (value < 40) {
+      return Colors.orange;
+    }// 쾌적
+    else if (value < 60) {
       return Colors.green;
-    } // 건조한 상태
+    }
+    // 습함
     else if (value < 70) {
       return Colors.lightBlue;
-    } // 쾌적한 상태
+    }//매우습함
     else {
       return Colors.blue;
+    }
+  }
+
+  double getMaxY(double maxY, String category) {
+    print("최대값: $maxY");
+    if (category == '미세먼지') {
+      if (maxY > 200) {
+        return maxY.ceil().toInt() + 10; // 최대값 +10 정도 추가로 주기
+      }
+      return 200;
+    } else if (category == '초미세먼지') {
+      if (maxY > 100) {
+        return maxY.ceil().toInt() + 10; // 최대값 +10 정도 추가로 주기
+      }
+      return 100;
+    } else if (category == '온도') {
+      return maxY.ceil().toDouble()+10; //그냥 최근 온도 +10
+    } else if (category == '습도') {
+      return 100; //
+    } else {
+      return 1; // 알 수 없는 카테고리일 경우 기본값
+    }
+  }
+
+  double getMinY(double minY, String category) {
+    if (category == '미세먼지') {
+      return 0;
+    } else if (category == '초미세먼지') {
+      return 0;
+    } else if (category == '온도') {
+      if(minY>=0){
+        return minY;
+      }else{
+        minY = minY.floor().toDouble()-10;
+        return minY;
+      }
+
+      print("최저 온도 : $minY");
+
+    } else if (category == '습도') {
+      return 0;
+    } else {
+      return 1; // 알 수 없는 카테고리일 경우 기본값
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final List<Map<String, dynamic>> dustData = widget.dustData;
+    final double minY = widget.minY;
+    final double maxY = widget.maxY;
     String category = widget.category;
+    print("무슨데이터: $dustData");
     return Container(
       padding: EdgeInsets.only(right: 30),
       height: 280,
       child: BarChart(
         BarChartData(
-            barGroups: dustData
-                .asMap()
-                .entries
-                .map((entry) {
-              int index = entry.key;
-              var data = entry.value;
-              return BarChartGroupData(
-                  x: index, // X축: 데이터 인덱스
-                  barRods: [
-              BarChartRodData(
-              toY: data['Value'].toInt().toDouble(),
-              // Y축: 미세먼지 값
-              color: getColor(data['Value'], category),
-              // 미세먼지 값에 따른 색상
-              width: 16, // 막대 너비
-              ),
-              ],
-              showingTooltipIndicators: [
-              0
-              ]);
-            }).toList(),
-            barTouchData: BarTouchData(
-                enabled: false,
-                touchTooltipData: BarTouchTooltipData(
-                    tooltipPadding: EdgeInsets.only(left: 4, right: 4),
-                    tooltipMargin: 5,
-                    getTooltipItem: (BarChartGroupData group, int groupIndex,
-                        BarChartRodData rod, int rodIndex) {
-                      var data = widget.dustData[groupIndex];
-                      return BarTooltipItem(
-                          rod.toY.toInt().toString(),
-                          TextStyle(
-                              color: getColor(data['Value'],category),
-                              fontWeight: FontWeight.bold));
-                    },
-                    getTooltipColor: (BarChartGroupData group) {
-                      //툴팁 배경 색
-                      return Colors.transparent;
-                    })),
-            titlesData: FlTitlesData(
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  reservedSize: 30,
-                  showTitles: true,
-                  getTitlesWidget: (value, meta) {
-                    int index = value.toInt();
-                    if (index % 2 == 0) {
-                      return Text(dustData[index]['time']); // X축: 시간
-                    }
-                    return Text('');
+          minY: getMinY(minY, category)
+          ,
+          maxY: getMaxY(maxY, category)
+          ,
+          barGroups: dustData.asMap().entries.map((entry) {
+            int index = entry.key;
+            var data = entry.value;
+            return BarChartGroupData(
+                x: index, // X축: 데이터 인덱스
+                barRods: [
+                  BarChartRodData(
+                    toY: data['Value'],
+                    borderRadius: BorderRadius.circular(0),
+                    // Y축: 미세먼지 값
+                    color: getColor(data['Value'], category),
+                    // 미세먼지 값에 따른 색상
+                    width: 25, // 막대 너비
+                  ),
+                ],
+                showingTooltipIndicators: [
+                  0
+                ]);
+          }).toList(),
+          barTouchData: BarTouchData(
+              enabled: true,
+              touchTooltipData: BarTouchTooltipData(
+                  tooltipPadding: EdgeInsets.only(left: 4, right: 4),
+                  tooltipMargin: 5,
+                  getTooltipItem: (BarChartGroupData group, int groupIndex,
+                      BarChartRodData rod, int rodIndex) {
+                    var data = widget.dustData[groupIndex];
+                    return BarTooltipItem(
+                        (rod.toY % 1 == 0)
+                            ? rod.toY.toInt().toString()
+                            : rod.toY.toStringAsFixed(1),
+                        TextStyle(
+                            color: getColor(data['Value'], category),
+                            fontWeight: FontWeight.bold,
+                        fontSize: 16));
                   },
-                ),
-              ),
-              rightTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              topTitles: const AxisTitles(
-                // axisNameSize: 30,
-                // axisNameWidget: Text(widget.title),
-                  sideTitles: SideTitles(showTitles: false)
+                  getTooltipColor: (BarChartGroupData group) {
+                    //툴팁 배경 색
+                    return Colors.transparent;
+                  })),
+          titlesData: FlTitlesData(
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                reservedSize: 30,
+                showTitles: true,
+                getTitlesWidget: (value, meta) {
+                  int index = value.toInt();
+                  if (index % 2 == 0) {
+                    return Text(dustData[index]['time']); // X축: 시간
+                  }
+                  return Text('');
+                },
               ),
             ),
-            borderData: FlBorderData(
-                show: true,
-                border: Border(
-                    left: BorderSide(color: Colors.black),
-                    bottom: BorderSide(color: Colors.black),
-                    right: BorderSide.none,
-                    top: BorderSide.none)),
-            gridData: FlGridData(show: false),
-            alignment: BarChartAlignment.spaceAround,
-            maxY: 200),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(
+                // axisNameSize: 30,
+                // axisNameWidget: Text(widget.title),
+                sideTitles: SideTitles(showTitles: false)),
+          ),
+          borderData: FlBorderData(
+              show: true,
+              border: Border(
+                  left: BorderSide(color: Colors.black),
+                  bottom: BorderSide(color: Colors.black),
+                  right: BorderSide.none,
+                  top: BorderSide.none)),
+          gridData: FlGridData(show: true,drawVerticalLine: false),
+          alignment: BarChartAlignment.spaceAround,
+        ),
       ),
     );
   }
